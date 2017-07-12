@@ -18,6 +18,7 @@
 
 import logging
 import operator
+import math
 
 from django.core.urlresolvers import reverse
 from django.core.urlresolvers import reverse_lazy
@@ -48,6 +49,18 @@ class IndexView(tables.DataTableView):
     template_name = 'identity/users/index.html'
     page_title = _("Users")
 
+    def has_prev_data(self, table):
+        return self._prev
+
+    def has_more_data(self, table):
+        return self._more
+    
+    def get_data_length(self, table):
+        return self._data_length
+
+    def get_pages(self, table):
+        return self._pages
+
     def get_data(self):
         users = []
         domain_context = self.request.session.get('domain_context', None)
@@ -71,7 +84,55 @@ class IndexView(tables.DataTableView):
         else:
             msg = _("Insufficient privilege level to view user information.")
             messages.info(self.request, msg)
-        return users
+
+
+        page_size = 2
+        extra_pages = 1
+        self._data_length = len(users)
+
+        prev_marker = self.request.GET.get(
+            project_tables.UsersTable._meta.prev_pagination_param, None)
+        marker = self.request.GET.get(
+                project_tables.UsersTable._meta.pagination_param, None)
+
+        if marker == '':
+            marker = None
+        if prev_marker is not None:
+            last = users.index([x for x in users if x.id == prev_marker][0])
+            first = last - page_size
+        elif marker is not None:
+            first = users.index([x for x in users if x.id == marker][0]) + 1
+            last = first + page_size
+        else:
+            first = 0
+            last = page_size
+
+        self._more = False
+        self._prev = False
+        
+        try:
+            if users[last] is not None:
+                self._more = True
+        except Exception:
+            self._more = False
+
+        if first != 0:
+            self._prev = True
+        
+        first_for_page = first - page_size*extra_pages
+        if first_for_page < 0:
+            first_for_page = 0
+        last_for_page = last + page_size*extra_pages
+        if last_for_page > len(users) - 1:
+            last_for_page = len(users) - 1
+
+        users_sup = [''] + [x.id for x in users]
+        all_pages = ['?marker=' + x for x in users_sup if users_sup.index(x) % page_size == 0]
+        init_fill = [0] * int(math.floor(first_for_page/page_size))
+        final_fill = [0] * (int(math.floor((len(users_sup) - last_for_page)/page_size))-1)
+        self._pages = init_fill + all_pages[int(math.floor(first_for_page/page_size)) : int(math.floor(last_for_page/page_size))+1] + final_fill
+
+        return users[first:last]
 
 
 class UpdateView(forms.ModalFormView):

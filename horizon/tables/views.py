@@ -116,12 +116,20 @@ class MultiTableMixin(object):
     def has_more_data(self, table):
         return False
 
+    def get_data_length(self, table):
+        return False
+
+    def get_pages(self, table):
+        return []
+
     def handle_table(self, table):
         name = table.name
         data = self._get_data_dict()
         self._tables[name].data = data[table._meta.name]
         self._tables[name]._meta.has_more_data = self.has_more_data(table)
         self._tables[name]._meta.has_prev_data = self.has_prev_data(table)
+        self._tables[name]._meta.get_data_length = self.get_data_length(table)
+        self._tables[name]._meta.get_pages = self.get_pages(table)
         handled = self._tables[name].maybe_handle()
         return handled
 
